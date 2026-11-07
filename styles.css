@@ -1,0 +1,89 @@
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:#111;font-family:monospace;overflow:hidden;touch-action:none}
+#game{display:block;width:100vw;height:100vh;image-rendering:pixelated}
+#hud{position:fixed;top:12px;left:14px;font-size:11px;line-height:1.65;font-weight:bold;pointer-events:none}
+#stageLabel{position:fixed;top:12px;right:14px;font-size:11px;font-weight:bold;text-align:right}
+#pauseBtn{position:fixed;top:45px;right:14px;padding:7px 10px;font-size:11px}
+#comboLabel{position:fixed;top:95px;left:50%;transform:translateX(-50%);font-size:15px;font-weight:bold;text-align:center;pointer-events:none}
+#effectLabel{position:fixed;top:125px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:bold;text-align:center;pointer-events:none}
+#missionHUD{position:fixed;bottom:65px;left:14px;font-size:10px;line-height:1.6;font-weight:bold;pointer-events:none}
+#message{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:11px;padding:12px;overflow-y:auto;z-index:5;background:rgba(255,255,255,.08)}
+.hidden{display:none!important}
+h1{font-size:29px;margin:0}h2{font-size:17px;margin:0}h3{font-size:13px;margin:4px 0}
+p{font-size:12px;line-height:1.7;margin:0}
+button{font-family:monospace;font-weight:bold;border:2px solid #111;background:#111;color:#fff;padding:11px 16px;font-size:12px;cursor:pointer}
+button:disabled{opacity:.3}button.secondary{background:#fff;color:#111}button.small{padding:7px 9px;font-size:10px}
+#menuActions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-start}
+.panel{width:min(430px,96%);border:2px solid #111;padding:12px;text-align:left;background:#fff}
+.panel p{margin:5px 0}.panel button{margin:3px}
+.entry{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #ddd;padding:6px 0;font-size:11px}
+#touchLabels{position:fixed;bottom:35px;width:100%;display:flex;justify-content:space-between;padding:0 8%;font-size:10px;color:#999;pointer-events:none}
+#hint{position:fixed;bottom:12px;width:100%;text-align:center;font-size:9px;color:#555;pointer-events:none}
+.menu-card{width:min(780px,calc(100vw - 36px));max-height:calc(100vh - 36px);overflow-y:auto;padding:clamp(20px,4vw,36px);background:rgba(255,255,255,.96);border:1px solid #111;box-shadow:10px 10px 0 rgba(17,17,17,.22);position:relative;text-align:left;animation:menu-arrive .45s ease-out both}
+.menu-card:before{content:"";position:absolute;inset:7px;border:1px solid #ddd;pointer-events:none}
+.menu-topline,.menu-layout,.menu-footer{position:relative}
+.menu-topline{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:16px;border-bottom:1px solid #ccc}
+.menu-location{font-size:10px;font-weight:bold;letter-spacing:2px}
+.menu-edition{font-size:9px;letter-spacing:1px;color:#777}
+.menu-layout{display:grid;grid-template-columns:1.15fr .85fr;gap:clamp(20px,5vw,58px);padding:clamp(22px,4vw,38px) 0}
+.menu-kicker{display:flex;align-items:center;gap:9px;font-size:9px;font-weight:bold;letter-spacing:2px;color:#666}
+.menu-kicker:before{content:"";width:22px;height:2px;background:#111}
+.menu-card h1{margin:12px 0 8px;font-size:clamp(48px,8vw,76px);line-height:.83;letter-spacing:-5px}
+.menu-card h1 span,.menu-card h1 strong{display:block}
+.menu-card h1 strong{font-weight:900;-webkit-text-stroke:1px #111;color:transparent}
+.menu-subtitle{font-size:10px;letter-spacing:2px;color:#555;margin:16px 0}
+.menu-description{max-width:320px;font-size:12px;line-height:1.9;margin:0 0 22px}
+#startBtn{display:flex;align-items:center;justify-content:space-between;gap:20px;width:min(100%,310px);padding:13px 16px;background:#111;border:2px solid #111;box-shadow:4px 4px 0 #999;text-align:left;transition:transform .15s,box-shadow .15s}
+#startBtn span:first-child{font-size:20px}
+#startBtn span:nth-child(2){flex:1;font-size:14px}
+#startBtn small{display:block;margin-top:4px;font-size:8px;letter-spacing:1.5px;color:#ccc}
+#startBtn b{font-size:18px}
+#startBtn:hover{transform:translate(2px,2px);box-shadow:2px 2px 0 #999}
+#startBtn:active{transform:translate(4px,4px);box-shadow:none}
+.dispatch-card{position:relative;min-height:180px;padding:20px;background:#111;color:#fff;overflow:hidden}
+.dispatch-card:after{content:"";position:absolute;width:170px;height:170px;right:-65px;bottom:-105px;border:1px solid #777;border-radius:50%;box-shadow:0 0 0 12px #222,0 0 0 13px #777,0 0 0 28px #222,0 0 0 29px #777}
+.dispatch-stamp{display:inline-block;padding:5px 7px;border:1px solid #888;font-size:9px;letter-spacing:1px}
+.dispatch-title{margin-top:28px;font-size:20px;font-weight:bold;letter-spacing:2px}
+.dispatch-copy{margin-top:7px;font-size:9px;line-height:1.8;color:#bbb}
+.dispatch-route{display:flex;align-items:center;gap:8px;margin-top:22px;font-size:8px;letter-spacing:1px;color:#ddd}
+.dispatch-route:before{content:"";height:1px;flex:1;background:#777}
+.menu-stats{display:grid;grid-template-columns:1fr 1fr;margin-top:10px;border:1px solid #ccc}
+.menu-stat{padding:12px}
+.menu-stat+ .menu-stat{border-left:1px solid #ccc}
+.menu-stat span{display:block;font-size:8px;letter-spacing:1px;color:#777}
+.menu-stat strong{display:block;margin-top:6px;font-size:17px}
+#menuActions{margin-top:18px}
+#menuActions button{padding:9px 10px;font-size:9px;background:#fff;color:#111;border:1px solid #aaa;transition:background .15s,color .15s}
+#menuActions button:hover{background:#111;color:#fff;border-color:#111}
+.menu-footer{display:flex;justify-content:space-between;gap:12px;padding-top:14px;border-top:1px solid #ccc;font-size:8px;letter-spacing:1px;color:#777}
+@keyframes menu-arrive{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:600px){
+ #message{padding:12px}
+ .menu-card{width:100%;max-height:calc(100vh - 24px);padding:22px 18px}
+ .menu-topline{align-items:flex-start}
+ .menu-location{font-size:8px;letter-spacing:1px}
+ .menu-edition{font-size:7px}
+ .menu-layout{grid-template-columns:1fr;gap:18px;padding:22px 0}
+ .menu-card h1{font-size:56px}
+ .menu-description{margin-bottom:16px}
+ .dispatch-card{min-height:140px;padding:16px}
+ .dispatch-title{margin-top:18px;font-size:17px}
+ .dispatch-route{margin-top:12px}
+ #menuActions{gap:6px}
+ #menuActions button{flex:1 1 calc(50% - 6px);padding:9px 5px}
+ .menu-footer{font-size:7px}
+}
+@media(max-height:650px) and (min-width:601px){
+ .menu-card{padding:20px 28px}
+ .menu-layout{padding:18px 0}
+ .dispatch-card{min-height:145px}
+ .dispatch-title{margin-top:16px}
+ .dispatch-route{margin-top:12px}
+}
+#account{position:fixed;z-index:4;top:10px;right:12px;display:flex;align-items:center;gap:8px;max-width:min(320px,calc(100vw - 24px));padding:7px;background:rgba(255,255,255,.94);border:1px solid #ddd}
+#googleButton{min-width:190px;min-height:40px;filter:grayscale(1)}
+#profile{display:flex;align-items:center;gap:8px;min-width:0;font-size:12px}
+#profile img{width:32px;height:32px;border-radius:50%;filter:grayscale(1)}
+#profileName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#signOutBtn{padding:8px 10px;font-size:12px;white-space:nowrap}
+#loginStatus{position:fixed;z-index:4;top:66px;right:12px;max-width:min(320px,calc(100vw - 24px));padding:6px 8px;background:rgba(255,255,255,.94);font-size:10px}
