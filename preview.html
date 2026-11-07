@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Santa Run</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #fff;
+        color: #111;
+        font-family: monospace;
+        overflow: hidden;
+        touch-action: none;
+      }
+      #game {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        image-rendering: pixelated;
+        touch-action: none;
+      }
+      #ui {
+        position: fixed;
+        top: 14px;
+        left: 14px;
+        font-size: 14px;
+        line-height: 1.7;
+        font-weight: bold;
+        pointer-events: none;
+      }
+      #message {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.88);
+        font-weight: bold;
+        gap: 12px;
+      }
+      #message h1 {
+        font-size: 30px;
+        margin: 0;
+      }
+      #message p {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.8;
+      }
+      button {
+        font-family: monospace;
+        font-weight: bold;
+        background: #111;
+        color: white;
+        border: 0;
+        padding: 12px 24px;
+        font-size: 16px;
+      }
+      .hidden {
+        display: none !important;
+      }
+      #hint {
+        position: fixed;
+        bottom: 12px;
+        width: 100%;
+        text-align: center;
+        font-size: 11px;
+        color: #555;
+        pointer-events: none;
+      }
+      #touchLabels {
+        position: fixed;
+        bottom: 38px;
+        left: 0;
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 8%;
+        font-size: 12px;
+        font-weight: bold;
+        color: #aaa;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div id="ui">
+      SCORE <span id="score">0</span><br />
+      BEST <span id="best">0</span><br />
+      PRESENT <span id="present">0</span><br />
+      LEVEL <span id="level">1</span>
+    </div>
+
+    <div id="message">
+      <h1>🎅 SANTA RUN</h1>
+      <p>장애물을 뛰어넘고<br />굴뚝에 선물을 배달하세요!</p>
+      <button id="startBtn">START</button>
+    </div>
+
+    <div id="touchLabels">
+      <span>← PRESENT</span>
+      <span>HOLD TO JUMP →</span>
+    </div>
+
+    <div id="hint">왼쪽: 선물 던지기 · 오른쪽 길게 누르기: 높이 점프</div>
+
+    <script>
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+
+      const scoreEl = document.getElementById("score");
+      const bestEl = document.getElementById("best");
+      const presentEl = document.getElementById("present");
+      const levelEl = document.getElementById("level");
+      const message = document.getElementById("message");
+      const startBtn = document.getElementById("startBtn");
+
+      let W, H, groundY;
+      let running = false;
+      let gameOver = false;
+
+      let score = 0;
+      let present = 0;
+      let frame = 0;
+
+      // 난이도 설정
+      const START_SPEED = 3.2;
+      const MAX_SPEED = 8.5;
+      const START_SPAWN_INTERVAL = 150;
+      const MIN_SPAWN_INTERVAL = 62;
+
+      let speed = START_SPEED;
+      let spawnTimer = 0;
+      let spawnInterval = START_SPAWN_INTERVAL;
+      let level = 1;
+
+      let obstacles = [];
+      let gifts = [];
+      let particles = [];
+
+      let jumpHeld = false;
+      let jumpHoldFrames = 0;
+      const MAX_HOLD_FRAMES = 22;
+
+      let best = Number(localStorage.getItem("santaBest") || 0);
+      bestEl.textContent = best;
+
+      const santa = {
+        x: 90,
+        y: 0,
+        vy: 0,
+        w: 42,
+        h: 52,
+        jumping: false,
+      };
+
+      function resize() {
+        canvas.width = window.innerWidth * devicePixelRatio;
+        canvas.height = window.innerHeight * devicePixelRatio;
+
+        canvas.style.width = window.innerWidth + "px";
+        canvas.style.height = window.innerHeight + "px";
+
+        ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+        W = window.innerWidth;
+        H = window.innerHeight;
+        groundY = H * 0.78;
+
+        if (!running) santa.y = groundY - santa.h;
+      }
+      window.addEventListener("resize", resize);
+      resize();
+
+      function resetGame() {
+        score = 0;
+        present = 0;
+        frame = 0;
+
+        speed = START_SPEED;
+        spawnTimer = 0;
+        spawnInterval = START_SPAWN_INTERVAL;
+        level = 1;
+
+        obstacles = [];
+        gifts = [];
+        particles = [];
+
+        santa.y = groundY - santa.h;
+        santa.vy = 0;
+        santa.jumping = false;
+
+        jumpHeld = false;
+        jumpHoldFrames = 0;
+
+        scoreEl.textContent = score;
+        presentEl.textContent = present;
+        levelEl.textContent = level;
+      }
+
+      function startGame() {
+        resetGame();
+        running = true;
+        gameOver = false;
+        message.classList.add("hidden");
+        loop();
+      }
+
+      function endGame() {
+        if (!running) return;
+
+        running = false;
+        gameOver = true;
+        jumpHeld = false;
+
+        if (score > best) {
+          best = score;
+          localStorage.setItem("santaBest", best);
+          bestEl.textContent = best;
+        }
+
+        message.innerHTML = `
+    <h1>GAME OVER</h1>
+    <p>SCORE: ${score}<br>
+    PRESENT: ${present}<br>
+    BEST: ${best}<br>
+    LEVEL: ${level}</p>
+    <button id="restartBtn">RETRY</button>
+  `;
+
+        message.classList.remove("hidden");
+        document.getElementById("restartBtn").onclick = startGame;
+      }
+
+      /* 점프 시작 */
+      function jumpStart() {
+        if (!running) return;
+
+        if (!santa.jumping) {
+          santa.vy = -10;
+          santa.jumping = true;
+          jumpHeld = true;
+          jumpHoldFrames = 0;
+        }
+      }
+
+      function jumpRelease() {
+        jumpHeld = false;
+      }
+
+      /* 선물 던지기 */
+      function throwGift() {
+        if (!running) return;
+
+        gifts.push({
+          x: santa.x + 43,
+          y: santa.y + 20,
+          vx: 9,
+          vy: -2.8,
+          rot: 0,
+          size: 18,
+          hit: false,
+        });
+      }
+
+      /* 화면 왼쪽: 선물 / 오른쪽: 점프 */
+      canvas.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+
+        if (!running && !gameOver) {
+          startGame();
+          return;
+        }
+
+        if (e.clientX < window.innerWidth / 2) {
+          throwGift();
+        } else {
+          jumpStart();
+        }
+      });
+
+      canvas.addEventListener("pointerup", jumpRelease);
+      canvas.addEventListener("pointercancel", jumpRelease);
+      canvas.addEventListener("pointerleave", jumpRelease);
+
+      /* 키보드 */
+      document.addEventListener("keydown", (e) => {
+        if (e.code === "Space" || e.code === "ArrowUp") {
+          e.preventDefault();
+
+          if (!running && !gameOver) {
+            startGame();
+          } else if (!e.repeat) {
+            jumpStart();
+          }
+        }
+
+        if (e.code === "KeyZ" && !e.repeat) {
+          throwGift();
+        }
+      });
+
+      document.addEventListener("keyup", (e) => {
+        if (e.code === "Space" || e.code === "ArrowUp") {
+          jumpRelease();
+        }
+      });
+
+      startBtn.onclick = startGame;
+
+      function px(x, y, w, h, color = "#111") {
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.round(x), Math.round(y), w, h);
+      }
+
+      function drawGround() {
+        px(0, groundY, W, 3);
+
+        for (let x = 0; x < W; x += 28) {
+          px(x, groundY + 8, 12, 2, "#bbb");
+        }
+      }
+
+      function drawSleigh() {
+        const x = santa.x - 18;
+        const y = santa.y + 27;
+
+        px(x, y, 64, 8);
+        px(x + 8, y - 8, 43, 8);
+        px(x + 3, y + 8, 4, 3);
+        px(x + 52, y + 8, 4, 3);
+
+        px(x + 59, y - 4, 7, 4);
+        px(x + 64, y - 8, 4, 4);
+        px(x + 58, y + 8, 10, 3);
+
+        // 산타
+        px(santa.x + 8, santa.y + 15, 23, 24);
+        px(santa.x + 4, santa.y + 18, 7, 17);
+
+        // 얼굴
+        px(santa.x + 13, santa.y + 4, 20, 17, "#fff");
+        px(santa.x + 17, santa.y + 9, 3, 3);
+        px(santa.x + 27, santa.y + 9, 3, 3);
+
+        // 수염
+        px(santa.x + 12, santa.y + 17, 22, 7);
+        px(santa.x + 16, santa.y + 24, 15, 5);
+        px(santa.x + 20, santa.y + 29, 8, 4);
+
+        // 모자
+        px(santa.x + 9, santa.y, 25, 5);
+        px(santa.x + 15, santa.y - 8, 15, 8);
+        px(santa.x + 25, santa.y - 13, 8, 7);
+        px(santa.x + 6, santa.y - 1, 7, 5);
+        px(santa.x + 31, santa.y - 14, 5, 5);
+      }
+
+      function drawRudolph() {
+        const x = santa.x + 52;
+        const y = santa.y + 27;
+        const bob = Math.sin(frame * 0.15) * 2;
+
+        ctx.save();
+        ctx.translate(x, y + bob);
+
+        // 몸통
+        px(0, 0, 25, 13);
+        px(4, -4, 17, 5);
+        px(4, 12, 4, 8);
+        px(18, 12, 4, 8);
+
+        // 목과 머리
+        px(20, -5, 7, 8);
+        px(23, -12, 13, 12);
+
+        // 코와 눈
+        px(34, -7, 5, 5);
+        px(30, -9, 2, 2, "#fff");
+
+        // 귀
+        px(23, -13, 4, 4);
+        px(34, -13, 4, 4);
+
+        // 뿔
+        px(26, -18, 3, 7);
+        px(23, -21, 3, 4);
+        px(23, -24, 7, 3);
+
+        px(35, -18, 3, 7);
+        px(38, -21, 3, 4);
+        px(36, -24, 7, 3);
+
+        // 목 장식
+        px(20, -1, 8, 3, "#fff");
+
+        ctx.restore();
+      }
+
+      function drawGift(x, y, size = 18, rotation = 0) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(rotation);
+
+        const s = size;
+
+        // 그림자
+        px(-s / 2 + 2, s / 2 + 2, s, s / 3, "#bbb");
+
+        // 상자
+        px(-s / 2, -s / 2, s, s, "#111");
+        px(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4, "#fff");
+
+        // 리본
+        px(-s / 2, -2, s, 4, "#111");
+        px(-2, -s / 2, 4, s, "#111");
+
+        // 리본 고리
+        px(-6, -s / 2 - 5, 5, 4, "#111");
+        px(2, -s / 2 - 5, 5, 4, "#111");
+        px(-5, -s / 2 - 3, 3, 3, "#fff");
+        px(3, -s / 2 - 3, 3, 3, "#fff");
+
+        // 매듭과 포장 무늬
+        px(-2, -s / 2 - 2, 4, 4, "#111");
+        px(-s / 2 + 3, s / 2 - 5, 3, 3, "#111");
+        px(s / 2 - 6, -s / 2 + 3, 3, 3, "#111");
+
+        ctx.restore();
+      }
+
+      function drawChimney(o) {
+        px(o.x, o.y, 28, o.h, "#111");
+        px(o.x + 5, o.y + 5, 18, o.h - 5, "#fff");
+
+        // 굴뚝 윗부분
+        px(o.x - 4, o.y - 7, 36, 8, "#111");
+        px(o.x + 1, o.y - 4, 26, 3, "#fff");
+
+        // 벽돌
+        for (let y = o.y + 12; y < o.y + o.h; y += 13) {
+          px(o.x + 2, y, 24, 2, "#111");
+        }
+      }
+
+      function spawnObstacle() {
+        const type = Math.random() < 0.55 ? "chimney" : "snow";
+
+        if (type === "chimney") {
+          obstacles.push({
+            type,
+            x: W + 20,
+            y: groundY - 54,
+            w: 28,
+            h: 54,
+            passed: false,
+          });
+        } else {
+          obstacles.push({
+            type,
+            x: W + 20,
+            y: groundY - 20,
+            w: 24,
+            h: 20,
+            passed: false,
+          });
+        }
+      }
+
+      function drawObstacle(o) {
+        if (o.type === "chimney") {
+          drawChimney(o);
+        } else {
+          // 눈더미
+          px(o.x, o.y + 8, 24, 12, "#111");
+          px(o.x + 4, o.y + 3, 16, 8, "#111");
+          px(o.x + 7, o.y, 10, 5, "#111");
+          px(o.x + 5, o.y + 5, 5, 3, "#fff");
+        }
+      }
+
+      function update() {
+        frame++;
+
+        /*
+    난이도는 생존 시간에 따라 천천히 증가.
+    초반에는 속도와 장애물 간격을 넉넉하게 유지.
+  */
+        const difficulty = Math.min(frame / 1800, 1);
+
+        speed = START_SPEED + (MAX_SPEED - START_SPEED) * difficulty;
+
+        spawnInterval =
+          START_SPAWN_INTERVAL -
+          (START_SPAWN_INTERVAL - MIN_SPAWN_INTERVAL) * difficulty;
+
+        level = 1 + Math.floor(frame / 900);
+        level = Math.min(level, 10);
+        levelEl.textContent = level;
+
+        // 점프 버튼을 누르고 있는 동안 추가 상승력
+        if (jumpHeld && santa.vy < 0 && jumpHoldFrames < MAX_HOLD_FRAMES) {
+          santa.vy -= 0.38;
+          jumpHoldFrames++;
+        }
+
+        // 중력
+        santa.y += santa.vy;
+        santa.vy += 0.65;
+
+        // 착지
+        if (santa.y >= groundY - santa.h) {
+          santa.y = groundY - santa.h;
+          santa.vy = 0;
+          santa.jumping = false;
+          jumpHeld = false;
+          jumpHoldFrames = 0;
+        }
+
+        // 장애물 생성 타이머
+        spawnTimer++;
+
+        if (spawnTimer >= spawnInterval) {
+          spawnObstacle();
+          spawnTimer = 0;
+
+          // 후반에는 간격을 조금 더 불규칙하게
+          if (difficulty > 0.5) {
+            spawnTimer = -Math.random() * 20;
+          }
+        }
+
+        // 장애물 이동 및 충돌
+        obstacles.forEach((o) => {
+          o.x -= speed;
+
+          const santaBox = {
+            x: santa.x + 5,
+            y: santa.y + 8,
+            w: 30,
+            h: 40,
+          };
+
+          if (
+            santaBox.x + santaBox.w > o.x &&
+            santaBox.x < o.x + o.w &&
+            santaBox.y + santaBox.h > o.y
+          ) {
+            endGame();
+          }
+
+          if (!o.passed && o.x + o.w < santa.x) {
+            o.passed = true;
+            score += 10;
+            scoreEl.textContent = score;
+          }
+        });
+
+        obstacles = obstacles.filter((o) => o.x > -80);
+
+        // 선물 이동 및 굴뚝 충돌
+        gifts.forEach((g) => {
+          g.x += g.vx;
+          g.y += g.vy;
+          g.vy += 0.12;
+          g.rot += 0.15;
+
+          obstacles.forEach((o) => {
+            if (g.hit || o.type !== "chimney") return;
+
+            const giftLeft = g.x - g.size / 2;
+            const giftRight = g.x + g.size / 2;
+            const giftTop = g.y - g.size / 2;
+            const giftBottom = g.y + g.size / 2;
+
+            const chimneyLeft = o.x - 4;
+            const chimneyRight = o.x + o.w + 4;
+            const chimneyTop = o.y - 7;
+            const chimneyBottom = o.y + o.h;
+
+            if (
+              giftRight > chimneyLeft &&
+              giftLeft < chimneyRight &&
+              giftBottom > chimneyTop &&
+              giftTop < chimneyBottom
+            ) {
+              g.hit = true;
+
+              // 배달 성공
+              present++;
+              presentEl.textContent = present;
+
+              for (let i = 0; i < 10; i++) {
+                particles.push({
+                  x: g.x,
+                  y: g.y,
+                  vx: (Math.random() - 0.5) * 4,
+                  vy: (Math.random() - 0.5) * 4,
+                  life: 25,
+                });
+              }
+            }
+          });
+        });
+
+        gifts = gifts.filter((g) => !g.hit && g.x < W + 50 && g.y < H + 50);
+
+        // 파티클
+        particles.forEach((p) => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.life--;
+        });
+
+        particles = particles.filter((p) => p.life > 0);
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        // 하늘
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, W, H);
+
+        // 픽셀 눈
+        for (let i = 0; i < 30; i++) {
+          const x = (i * 97 - frame * 0.4) % W;
+          const y = (i * 53) % Math.max(groundY - 30, 1);
+          px(x, y, 2, 2, "#ddd");
+        }
+
+        drawGround();
+        drawSleigh();
+        drawRudolph();
+
+        obstacles.forEach(drawObstacle);
+        gifts.forEach((g) => drawGift(g.x, g.y, g.size, g.rot));
+
+        particles.forEach((p) => {
+          px(p.x, p.y, 3, 3, "#111");
+        });
+      }
+
+      function loop() {
+        if (!running) return;
+
+        update();
+        draw();
+
+        if (running) requestAnimationFrame(loop);
+      }
+
+      draw();
+    </script>
+  </body>
+</html>
