@@ -35,6 +35,56 @@
         font-weight: bold;
         pointer-events: none;
       }
+      #account {
+        position: fixed;
+        z-index: 3;
+        top: 12px;
+        right: 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        max-width: min(320px, calc(100vw - 24px));
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid #ddd;
+      }
+      #googleButton {
+        min-width: 190px;
+        min-height: 40px;
+      }
+      #profile {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        font-size: 12px;
+      }
+      #profile img {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+      }
+      #profileName {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #signOutBtn {
+        padding: 8px 10px;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      #loginStatus {
+        position: fixed;
+        z-index: 4;
+        top: 68px;
+        right: 12px;
+        max-width: min(320px, calc(100vw - 24px));
+        margin: 0;
+        padding: 8px;
+        background: #fff;
+        font-size: 12px;
+      }
       #message {
         position: fixed;
         inset: 0;
@@ -102,6 +152,16 @@
       LEVEL <span id="level">1</span>
     </div>
 
+    <div id="account" aria-label="Google 계정">
+      <div id="googleButton"></div>
+      <div id="profile" class="hidden">
+        <img id="profilePicture" alt="" />
+        <span id="profileName"></span>
+      </div>
+      <button id="signOutBtn" class="hidden" type="button">로그아웃</button>
+    </div>
+    <p id="loginStatus" class="hidden" role="status" aria-live="polite"></p>
+
     <div id="message">
       <h1>🎅 SANTA RUN</h1>
       <p>장애물을 뛰어넘고<br />굴뚝에 선물을 배달하세요!</p>
@@ -125,6 +185,110 @@
       const levelEl = document.getElementById("level");
       const message = document.getElementById("message");
       const startBtn = document.getElementById("startBtn");
+      const googleButton = document.getElementById("googleButton");
+      const profile = document.getElementById("profile");
+      const profilePicture = document.getElementById("profilePicture");
+      const profileName = document.getElementById("profileName");
+      const signOutBtn = document.getElementById("signOutBtn");
+      const loginStatus = document.getElementById("loginStatus");
+
+      const GOOGLE_CLIENT_ID =
+        "377837397220-b7neat97v0ju4jku1m6gv4csvuq1rltg.apps.googleusercontent.com";
+
+      function showLoginStatus(text) {
+        loginStatus.textContent = text;
+        loginStatus.classList.remove("hidden");
+      }
+
+      function getGoogleProfile(credential) {
+        const payload = credential.split(".")[1];
+        if (!payload) throw new Error("Google 로그인 정보를 읽을 수 없습니다.");
+
+        const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+        const binary = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="));
+        const bytes = Uint8Array.from(binary, (character) =>
+          character.charCodeAt(0),
+        );
+        const claims = JSON.parse(new TextDecoder().decode(bytes));
+
+        if (typeof claims.name !== "string") {
+          throw new Error("Google 프로필 정보가 올바르지 않습니다.");
+        }
+
+        let picture = "";
+        if (
+          typeof claims.picture === "string" &&
+          /^https:\/\/(?:[a-z0-9-]+\.)*googleusercontent\.com\//i.test(
+            claims.picture,
+          )
+        ) {
+          picture = claims.picture;
+        }
+
+        return {
+          name: claims.name,
+          picture,
+        };
+      }
+
+      function handleGoogleCredential(response) {
+        try {
+          const user = getGoogleProfile(response.credential);
+          profileName.textContent = user.name;
+          profilePicture.src = user.picture;
+          profilePicture.classList.toggle("hidden", !user.picture);
+          googleButton.classList.add("hidden");
+          profile.classList.remove("hidden");
+          signOutBtn.classList.remove("hidden");
+          loginStatus.classList.add("hidden");
+        } catch (error) {
+          showLoginStatus(error.message);
+        }
+      }
+
+      function initializeGoogleSignIn() {
+        if (!window.google?.accounts?.id) {
+          showLoginStatus(
+            "Google 로그인 서비스를 불러오지 못했습니다. 페이지를 새로고침해 주세요.",
+          );
+          return;
+        }
+
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredential,
+        });
+        window.google.accounts.id.renderButton(googleButton, {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          text: "signin_with",
+          shape: "rectangular",
+          width: 240,
+          locale: "ko",
+        });
+      }
+
+      const googleScript = document.createElement("script");
+      googleScript.src = "https://accounts.google.com/gsi/client";
+      googleScript.async = true;
+      googleScript.defer = true;
+      googleScript.onload = initializeGoogleSignIn;
+      googleScript.onerror = () => {
+        showLoginStatus(
+          "Google 로그인 서비스를 불러오지 못했습니다. 네트워크 연결을 확인해 주세요.",
+        );
+      };
+      document.head.appendChild(googleScript);
+
+      signOutBtn.addEventListener("click", () => {
+        window.google?.accounts?.id?.disableAutoSelect();
+        profilePicture.removeAttribute("src");
+        profile.classList.add("hidden");
+        signOutBtn.classList.add("hidden");
+        googleButton.classList.remove("hidden");
+        showLoginStatus("로그아웃되었습니다.");
+      });
 
       let W, H, groundY;
       let running = false;
