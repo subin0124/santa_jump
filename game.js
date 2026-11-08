@@ -50,17 +50,37 @@ const defaultData={
  achievements:[],records:[]
 };
 
-function loadData(){
+const LOCAL_DATA_KEY="santaV3Data";
+const CLOUD_FILE_NAME="santa-run-progress.json";
+let activeUser=null;
+let accessToken="";
+let cloudFileId="";
+let cloudWriteChain=Promise.resolve();
+
+function normalizeData(s){
+ if(!s||typeof s!=="object"||Array.isArray(s))throw new Error("Invalid saved progress.");
+ const result={
+  ...defaultData,...s,
+  upgrades:{...defaultData.upgrades,...(s.upgrades||{})},
+  achievements:Array.isArray(s.achievements)?s.achievements.filter(id=>typeof id==="string"):[],
+  records:Array.isArray(s.records)?s.records.slice(0,10):[]
+ };
+ for(const key of ["best","coins","totalPresent","totalItems","bestCombo","unlocked"]){
+  if(!Number.isFinite(result[key])||result[key]<0)result[key]=defaultData[key];
+ }
+ for(const key of Object.keys(defaultData.upgrades)){
+  if(!Number.isFinite(result.upgrades[key])||result.upgrades[key]<0)result.upgrades[key]=0;
+ }
+ return result;
+}
+
+function loadData(key=LOCAL_DATA_KEY){
  try{
-  const s=JSON.parse(localStorage.getItem("santaV3Data")||"null");
-  return {
-   ...defaultData,...s,
-   upgrades:{...defaultData.upgrades,...(s?.upgrades||{})},
-   achievements:s?.achievements||[],
-   records:s?.records||[]
-  };
+  const saved=localStorage.getItem(key);
+  return saved?normalizeData(JSON.parse(saved)):normalizeData(defaultData);
  }catch(e){
-  return {...defaultData,upgrades:{...defaultData.upgrades}};
+  console.error("Could not load saved game progress.",e);
+  return normalizeData(defaultData);
  }
 }
 
@@ -93,10 +113,192 @@ function makeSnow(){
 makeSnow();
 
 function saveData(){
- localStorage.setItem("santaV3Data",JSON.stringify(data));
+ const storageKey=activeUser?LOCAL_DATA_KEY+":"+encodeURIComponent(activeUser.email.toLowerCase()):LOCAL_DATA_KEY;
+ try{
+  localStorage.setItem(storageKey,JSON.stringify(data));
+ }catch(e){
+  console.error("Could not save game progress on this device.",e);
+  setAccountStatus("DEVICE SAVE FAILED — check browser storage.");
+ }
  $("best").textContent=data.best;
  $("coins").textContent=running?runCoins:data.coins;
+ if(activeUser&&accessToken){
+  const snapshot=JSON.stringify(data);
+  cloudWriteChain=cloudWriteChain.then(()=>writeCloudProgress(snapshot)).catch(e=>{
+   console.error("Could not sync game progress to Google Drive.",e);
+   setAccountStatus("CLOUD SAVE FAILED — sign in again to retry.");
+  });
+ }
 }
+
+function setAccountStatus(message){
+ const status=$("accountStatus");
+ if(status)status.textContent=message;
+}
+
+function updateAccountUI(){
+ const button=$("accountButton");
+ if(!button)return;
+ button.textContent=activeUser?"SIGN OUT":"SAVE WITH GOOGLE";
+ setAccountStatus(activeUser?`Signed in as ${activeUser.email} · progress syncs to your Google account`:"Progress is saved on this device.");
+}
+
+function setAccountControlsVisible(visible){
+ const controls=$("accountControls");
+ if(controls)controls.classList.toggle("hidden",!visible);
+}
+
+function googleApiFetch(url,options={}){
+ return fetch(url,{
+  ...options,
+  headers:{Authorization:"Bearer "+accessToken,...(options.headers||{})}
+ }).then(async response=>{
+  if(!response.ok){
+   const detail=await response.text();
+   throw new Error(`Google API request failed (${response.status}): ${detail.slice(0,300)}`);
+  }
+  return response;
+ });
+}
+
+async function findCloudProgress(){
+ const query=new URLSearchParams({
+  spaces:"appDataFolder",
+  q:`name='${CLOUD_FILE_NAME}' and trashed=false`,
+  fields:"files(id,name)",
+  pageSize:"1"
+ });
+ const response=await googleApiFetch("https://www.googleapis.com/drive/v3/files?"+query);
+ const result=await response.json();
+ return result.files&&result.files.length?result.files[0].id:"";
+}
+
+async function writeCloudProgress(serialized){
+ if(!activeUser||!accessToken)return;
+ if(cloudFileId){
+  await googleApiFetch(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(cloudFileId)}?uploadType=media`,{
+   method:"PATCH",
+   headers:{"Content-Type":"application/json"},
+   body:serialized
+  });
+ }else{
+  const boundary="santa_run_"+Date.now();
+  const metadata=JSON.stringify({name:CLOUD_FILE_NAME,mimeType:"application/json",parents:["appDataFolder"]});
+  const body=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${serialized}\r\n--${boundary}--`;
+  const response=await googleApiFetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",{
+   method:"POST",
+   headers:{"Content-Type":`multipart/related; boundary=${boundary}`},
+   body
+  });
+  const result=await response.json();
+  cloudFileId=result.id;
+ }
+ setAccountStatus(`Signed in as ${activeUser.email} · progress saved to Google.`);
+}
+
+async function readCloudProgress(fileId){
+ const response=await googleApiFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`);
+ return normalizeData(await response.json());
+}
+
+function requestGoogleAccessToken(){
+ return new Promise((resolve,reject)=>{
+  if(!window.google?.accounts?.oauth2){
+   reject(new Error("Google sign-in is unavailable. Check your internet connection and reload."));
+   return;
+  }
+  const clientId=window.SANTA_GOOGLE_CLIENT_ID;
+  if(!clientId||clientId==="YOUR_GOOGLE_OAUTH_CLIENT_ID"){
+   reject(new Error("Set SANTA_GOOGLE_CLIENT_ID in index.html before enabling Google sign-in."));
+   return;
+  }
+  const client=window.google.accounts.oauth2.initTokenClient({
+   client_id:clientId,
+   scope:"openid email https://www.googleapis.com/auth/drive.appdata",
+   callback:response=>{
+    if(response.error)reject(new Error(response.error_description||response.error));
+    else resolve(response.access_token);
+   },
+   error_callback:error=>reject(new Error(error.message||error.type||"Google sign-in failed."))
+  });
+  client.requestAccessToken({prompt:""});
+ });
+}
+
+async function signInWithGoogle(){
+ if(running){
+  setAccountStatus("Finish the current run before changing accounts.");
+  return;
+ }
+ const button=$("accountButton");
+ const fallbackData=normalizeData(data);
+ button.disabled=true;
+ setAccountStatus("Connecting to Google...");
+ try{
+  accessToken=await requestGoogleAccessToken();
+  const profileResponse=await googleApiFetch("https://www.googleapis.com/oauth2/v3/userinfo");
+  const profile=await profileResponse.json();
+  if(!profile.email)throw new Error("Google did not return an account email.");
+  const email=profile.email.toLowerCase();
+  const previousAccount=activeUser;
+  activeUser={email};
+  cloudFileId=await findCloudProgress();
+  if(cloudFileId){
+   data=await readCloudProgress(cloudFileId);
+  }else{
+   const accountKey=LOCAL_DATA_KEY+":"+encodeURIComponent(email);
+   const accountData=loadData(accountKey);
+   const hasAccountData=localStorage.getItem(accountKey)!==null;
+   data=hasAccountData?accountData:(previousAccount?normalizeData(defaultData):normalizeData(data));
+   await writeCloudProgress(JSON.stringify(data));
+  }
+  updateAccountUI();
+  saveData();
+  setAccountStatus(`Signed in as ${email} · progress loaded from Google.`);
+ }catch(e){
+  activeUser=null;
+  accessToken="";
+  cloudFileId="";
+  data=fallbackData;
+  console.error("Google sign-in or progress loading failed.",e);
+  setAccountStatus(e.message);
+ }finally{
+  button.disabled=false;
+ }
+}
+
+async function signOutFromGoogle(){
+ if(running){
+  setAccountStatus("Finish the current run before changing accounts.");
+  return;
+ }
+ const button=$("accountButton");
+ button.disabled=true;
+ try{
+  await cloudWriteChain;
+  if(accessToken)await writeCloudProgress(JSON.stringify(data));
+  window.google?.accounts?.oauth2?.revoke(accessToken,()=>{});
+  activeUser=null;accessToken="";cloudFileId="";
+  data=loadData();
+  updateAccountUI();
+  saveData();
+ }catch(e){
+  console.error("Could not finish saving before sign-out.",e);
+  setAccountStatus("Could not sync before sign-out. Check your connection and try again.");
+ }finally{
+  button.disabled=false;
+ }
+}
+
+function handleAccountButton(){
+ if(activeUser)signOutFromGoogle();
+ else signInWithGoogle();
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+ $("accountButton").addEventListener("click",handleAccountButton);
+ updateAccountUI();
+});
 
 function hideGameUI(){
  ["hud","stageLabel","pauseBtn","touchLabels","hint",
@@ -110,7 +312,7 @@ function showPanel(title,body){
  <h1>${title}</h1>
  <div class="panel">${body}</div>
  <button id="backMenu" class="secondary">BACK TO MENU</button>`;
- $("backMenu").onclick=showMenu;
+ $("backMenu").onclick=returnToMainMenu;
  $("message").classList.remove("hidden");
 }
 
@@ -169,6 +371,7 @@ function showAchievements(){
 
 function showMenu(){
  running=false;paused=false;gameOver=false;
+ setAccountControlsVisible(true);
  menuActive=true;menuLaunching=false;menuLaunchFrame=0;
  hideGameUI();
  santa.x=W*.27;santa.y=groundY-santa.h;santa.vy=0;
@@ -187,6 +390,13 @@ function showMenu(){
  $("message").classList.remove("hidden");
  villageFrame=0;
  menuLoop();
+}
+
+function returnToMainMenu(){
+ hideGameUI();
+ setAccountControlsVisible(true);
+ if(typeof window.showMenu==="function")window.showMenu();
+ else showMenu();
 }
 
 function launchFromVillage(){
@@ -210,6 +420,7 @@ function resetGame(){
 
 function startGame(){
  menuActive=false;menuLaunching=false;
+ setAccountControlsVisible(false);
  resetGame();currentStage=0;
  running=true;paused=false;gameOver=false;
  $("message").classList.add("hidden");
@@ -233,13 +444,14 @@ function pauseGame(){
   paused=false;$("message").classList.add("hidden");loop();
  };
  $("retryBtn").onclick=startGame;
- $("menuBtn").onclick=showMenu;
+ $("menuBtn").onclick=returnToMainMenu;
  $("message").classList.remove("hidden");
 }
 
 function endGame(){
  if(!running)return;
  running=false;gameOver=true;jumpHeld=false;
+ setAccountControlsVisible(true);
  data.coins+=runCoins;
  data.best=Math.max(data.best,score);
  data.totalPresent+=present;
@@ -256,16 +468,10 @@ function endGame(){
 
  $("message").innerHTML=`
  <h1>MISSION FAILED</h1>
- <h2>SCORE: ${score}</h2>
- <p>PRESENT DELIVERED: ${present}<br>
- COMBO RECORD: ${combo}<br>
- COINS EARNED: ${runCoins}<br>
- BEST SCORE: ${data.best}<br>
- FINAL STAGE: ${stageData[currentStage].name}</p>
  <button id="retryBtn">RETRY</button>
  <button id="menuBtn" class="secondary">MAIN MENU</button>`;
  $("retryBtn").onclick=startGame;
- $("menuBtn").onclick=showMenu;
+ $("menuBtn").onclick=returnToMainMenu;
  $("message").classList.remove("hidden");
 }
 
