@@ -1,27 +1,947 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>SANTA RUN V3.9</title>
-<link rel="stylesheet" href="styles.css">
+<title>SANTA RUN - NORTH POLE</title>
+
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;overflow:hidden;background:#111;}
+body,button,div,p,h1,h2,h3,span,strong,small{font-family:"Courier New", "Consolas", "Lucida Console", monospace; -webkit-font-smoothing:antialiased; text-rendering:geometricPrecision; letter-spacing:.04em;}
+.hidden{display:none!important}
+canvas{display:block;width:100vw;height:100vh;image-rendering:pixelated;filter:grayscale(1)}
+
+#hud{position:fixed;top:12px;left:14px;font-size:11px;line-height:1.65;font-weight:bold;pointer-events:none;z-index:8;color:#111;background:rgba(255,255,255,.62);padding:6px 8px;border:2px solid #171717;box-shadow:3px 3px #777}
+#stageLabel{position:fixed;top:12px;right:14px;font-size:11px;font-weight:bold;text-align:right;z-index:8;pointer-events:none;color:#111}
+#pauseBtn{position:fixed;top:45px;right:14px;padding:7px 10px;font-size:11px;z-index:8}
+#comboLabel{position:fixed;top:95px;left:50%;transform:translateX(-50%);font-size:15px;font-weight:bold;text-align:center;pointer-events:none;z-index:8;color:#111}
+#effectLabel{position:fixed;top:125px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:bold;text-align:center;pointer-events:none;z-index:8;color:#111}
+#missionHUD{position:fixed;bottom:65px;left:14px;font-size:10px;line-height:1.6;font-weight:bold;pointer-events:none;z-index:8;color:#111;background:rgba(255,255,255,.62);padding:6px 8px;border:2px solid #171717;box-shadow:3px 3px #777}
+#touchLabels{position:fixed;bottom:35px;width:100%;display:flex;justify-content:space-between;padding:0 8%;font-size:10px;color:#999;pointer-events:none;z-index:8}
+#hint{position:fixed;bottom:12px;width:100%;text-align:center;font-size:9px;color:#555;pointer-events:none;z-index:8}
+
+#message{position:fixed;top:12px;left:0;width:100%;display:flex;justify-content:center;align-items:center;flex-direction:column;z-index:5;pointer-events:none;filter:grayscale(1)}
+#message h1,#message h2,#message h3,#message p{margin:0}
+#message button{
+  font-family:monospace;
+  font-weight:bold;
+  border:3px solid #000;
+  background:#171717;
+  color:#fff;
+  padding:9px 20px;
+  margin:8px 6px 0;
+  font-size:12px;
+  cursor:pointer;
+  box-shadow:3px 3px #888;
+  min-width:130px;
+}
+#message button.secondary{background:#fff;color:#111}
+#message button:disabled{opacity:.35;cursor:not-allowed}
+.menu-card{width:min(390px,90%);padding:10px 14px;background:rgba(245,245,245,.94);border:3px solid #171717;box-shadow:5px 5px 0 #555;text-align:center;pointer-events:auto}
+.menu-location{font-size:9px;letter-spacing:2px;color:#333}
+h1{font-size:clamp(28px,7vw,42px);color:#111;letter-spacing:4px;margin:5px 0}
+.subtitle{font-size:8px;letter-spacing:2px;color:#555;margin-bottom:9px}
+#startBtn{background:#171717;color:white;border:3px solid #000;padding:9px 24px;font-size:13px;box-shadow:3px 3px #888}
+.menu-footer{margin-top:8px;font-size:8px;letter-spacing:1px;color:#777}
+
+#hotspots{position:fixed;inset:0;z-index:4;pointer-events:none}
+.building-button{position:absolute;pointer-events:auto;display:flex;align-items:flex-end;justify-content:center;padding:5px;border:2px solid transparent;background:transparent;color:white;font-family:monospace;font-size:9px;font-weight:bold;letter-spacing:1px;text-shadow:2px 2px 2px #000,-1px -1px #000;cursor:pointer}
+.building-button span{background:rgba(15,15,15,.78);border:1px solid #eee;padding:5px 7px}
+
+#panel{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.65);filter:grayscale(1)}
+.panel-card{width:min(390px,92%);padding:24px 18px;text-align:center;background:#eee;border:4px solid #171717;box-shadow:7px 7px #555;color:#171717}
+.panel-tag{font-size:9px;letter-spacing:3px;color:#666}
+.panel-card h2{font-size:27px;letter-spacing:2px;margin:12px 0}
+.panel-card p{font-size:11px;line-height:2;color:#444}
+.panel-content{margin:18px 0;padding:12px;background:#ddd;border:2px solid #777;font-size:10px;line-height:2}
+.panel-card button,.interior-back{background:#171717;color:white;border:3px solid #000;padding:10px 25px;font-size:12px;cursor:pointer}
+
+/* WORKSHOP */
+#workshopInterior{position:fixed;inset:0;z-index:20;display:none;background:#171717;color:#eee;filter:grayscale(1);overflow:auto;padding:12px}
+.interior-shell{width:min(900px,100%);min-height:calc(100vh - 24px);margin:auto;background:#292929;border:5px solid #080808;box-shadow:inset 0 0 0 4px #777,7px 7px #080808;padding:10px;position:relative}
+.interior-header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #aaa;padding:8px 5px 12px;gap:8px;flex-wrap:wrap}
+.interior-header h2{font-size:clamp(17px,4vw,25px);margin:0;letter-spacing:2px}
+.interior-header span{font-size:9px;color:#bbb;letter-spacing:1px}
+
+.interior-room{position:relative;margin-top:12px;height:490px;overflow:hidden;border:5px solid #080808;background:#555;image-rendering:pixelated}
+.room-wall{position:absolute;inset:0 0 85px;background-color:#666;background-image:repeating-linear-gradient(0deg,transparent 0 48px,rgba(0,0,0,.2) 49px 52px),repeating-linear-gradient(90deg,transparent 0 90px,rgba(0,0,0,.1) 91px 94px)}
+.room-ceiling{position:absolute;top:0;left:0;width:100%;height:38px;background:#222;border-bottom:7px solid #111}
+.room-floor{position:absolute;bottom:0;left:0;width:100%;height:85px;background:#444;border-top:8px solid #171717;background-image:repeating-linear-gradient(0deg,transparent 0 20px,#292929 21px 23px),repeating-linear-gradient(90deg,transparent 0 74px,#222 75px 78px)}
+
+/* WINDOW */
+.room-window{position:absolute;top:65px;left:9%;width:115px;height:100px;background:#222;border:8px solid #171717;box-shadow:0 0 0 3px #aaa,5px 5px #111}
+.window-sky{position:absolute;inset:5px;background:#aaa;overflow:hidden}
+.window-moon{position:absolute;right:14px;top:12px;width:17px;height:17px;background:#eee;border-radius:50%;box-shadow:4px 2px 0 #777}
+.window-snow{position:absolute;bottom:0;left:0;width:100%;height:25px;background:#eee;clip-path:polygon(0 50%,20% 20%,40% 55%,60% 10%,80% 40%,100% 15%,100% 100%,0 100%)}
+.window-frame-v,.window-frame-h{position:absolute;background:#171717;z-index:2}
+.window-frame-v{width:7px;height:100%;left:50%;top:0}
+.window-frame-h{height:7px;width:100%;top:50%;left:0}
+
+/* CHRISTMAS CALENDAR */
+.christmas-calendar{position:absolute;top:55px;right:8%;width:245px;background:#ddd;color:#171717;border:5px solid #171717;box-shadow:5px 5px #222;padding:10px}
+.calendar-top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #444;padding-bottom:7px}
+.calendar-label{font-size:8px;letter-spacing:2px;color:#555}
+.calendar-month{font-size:17px;font-weight:bold;letter-spacing:1px}
+.countdown{margin:9px 0;padding:8px 4px;text-align:center;background:#292929;color:#fff;border:2px solid #111}
+.countdown-number{font-size:30px;font-weight:bold;line-height:1.1}
+.countdown-text{font-size:8px;letter-spacing:2px;margin-top:4px;color:#ccc}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}
+.calendar-grid div{display:flex;align-items:center;justify-content:center;min-height:21px;font-size:9px}
+.calendar-weekday{font-size:8px;color:#666;font-weight:bold}
+.calendar-day{background:#c5c5c5;border:1px solid #aaa}
+.calendar-day.empty{background:transparent;border:0}
+.calendar-day.today{background:#777;color:#fff;border:2px solid #111}
+.calendar-day.christmas{background:#171717;color:#fff;border:2px solid #fff;font-weight:bold;outline:2px solid #171717}
+.calendar-note{text-align:center;margin-top:8px;padding-top:7px;border-top:2px solid #888;font-size:8px;letter-spacing:1px;color:#444}
+
+/* SIMPLIFIED WORKSHOP */
+.workshop-sign{position:absolute;top:205px;left:50%;transform:translateX(-50%);width:190px;padding:9px;text-align:center;background:#292929;color:#eee;border:4px solid #171717;box-shadow:4px 4px #222;font-size:9px;letter-spacing:2px}
+.shelf{position:absolute;left:8%;top:270px;width:23%;height:65px;background:#292929;border:5px solid #111;box-shadow:inset 0 0 0 3px #777}
+.shelf:before{content:"";position:absolute;left:8px;top:12px;width:13px;height:18px;background:#ddd;box-shadow:25px 0 #aaa,50px 0 #eee,75px 0 #bbb}
+.shelf:after{content:"";position:absolute;left:0;right:0;bottom:12px;height:5px;background:#111}
+.shelf-label{position:absolute;top:340px;left:8%;width:23%;text-align:center;color:#ddd;font-size:8px;letter-spacing:1px}
+
+.workbench{position:absolute;left:38%;bottom:112px;width:27%;height:50px;background:#292929;border:5px solid #111;box-shadow:inset 0 0 0 3px #777}
+.workbench-top{position:absolute;left:35%;bottom:156px;width:33%;height:14px;background:#aaa;border:5px solid #111}
+.workbench-leg{position:absolute;bottom:62px;width:12px;height:50px;background:#222;border:3px solid #111}
+.workbench-leg.left{left:39%}
+.workbench-leg.right{left:63%}
+.workbench-label{position:absolute;left:35%;bottom:175px;width:33%;text-align:center;font-size:8px;color:#eee;letter-spacing:2px}
+
+.gift-box{position:absolute;width:28px;height:23px;background:#aaa;border:4px solid #171717;box-shadow:2px 2px #111}
+.gift-box:before{content:"";position:absolute;left:8px;top:0;width:5px;height:100%;background:#eee}
+.gift-box:after{content:"";position:absolute;left:3px;top:-9px;width:14px;height:6px;border:3px solid #eee}
+.gift-one{left:42%;bottom:185px}
+.gift-two{left:54%;bottom:190px;transform:scale(1.2)}
+.gift-stack{position:absolute;right:10%;bottom:90px;width:75px;height:50px}
+.gift-stack .gift-box{bottom:0;left:0}
+.gift-stack .gift-box:nth-child(2){left:32px;bottom:5px}
+.gift-stack .gift-box:nth-child(3){left:17px;bottom:27px;transform:scale(.8)}
+
+.elf{position:absolute;left:72%;bottom:87px;width:27px;height:52px}
+.elf-body{position:absolute;left:5px;top:19px;width:18px;height:25px;background:#222;border:3px solid #111}
+.elf-head{position:absolute;left:5px;top:3px;width:18px;height:18px;background:#ddd;border:3px solid #111}
+.elf-hat{position:absolute;left:3px;top:-5px;width:22px;height:10px;background:#222;border:3px solid #111}
+.elf-hat:after{content:"";position:absolute;right:-5px;top:-5px;width:6px;height:6px;background:#eee}
+.elf-leg{position:absolute;top:42px;width:7px;height:10px;background:#111}
+.elf-leg.left{left:7px}.elf-leg.right{left:17px}
+
+.interior-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.interior-action{min-height:60px;padding:10px 5px;text-align:center;background:#222;border:2px solid #aaa;color:#eee;font-family:monospace;cursor:pointer}
+.interior-action strong{display:block;font-size:10px;margin-bottom:6px}
+.interior-action small{font-size:8px;color:#aaa}
+.interior-description{padding:12px;margin-top:12px;background:#222;border:2px solid #777;font-size:10px;line-height:1.8;color:#ccc}
+.interior-back{margin-top:12px;width:100%}
+
+@media(max-width:600px){
+ #workshopInterior{padding:6px}
+ .interior-shell{padding:7px}
+ .interior-room{height:480px}
+ .room-window{left:5%;top:65px;width:90px;height:85px}
+ .christmas-calendar{right:3%;top:50px;width:190px;padding:7px}
+ .calendar-month{font-size:14px}
+ .countdown-number{font-size:25px}
+ .calendar-grid{gap:2px}
+ .calendar-grid div{min-height:17px;font-size:8px}
+ .workshop-sign{top:190px;width:150px;font-size:8px}
+ .shelf{left:4%;top:260px;width:28%;height:55px}
+ .shelf-label{left:4%;width:28%;top:320px}
+ .workbench{left:35%;width:33%}
+ .workbench-top{left:32%;width:39%}
+ .workbench-leg.left{left:37%}
+ .workbench-leg.right{left:65%}
+ .workbench-label{left:32%;width:39%}
+ .gift-one{left:39%}
+ .gift-two{left:54%}
+ .gift-stack{right:3%}
+ .elf{left:75%}
+ .interior-actions{grid-template-columns:1fr 1fr}
+}
+</style>
 </head>
+
 <body>
 <canvas id="game"></canvas>
-<div id="account" aria-label="Google 계정">
-<div id="googleButton"></div>
-<div id="profile" class="hidden"><img id="profilePicture" alt=""><span id="profileName"></span></div>
-<button id="signOutBtn" class="hidden" type="button">로그아웃</button>
+<div id="hud" class="hidden">
+ <div>SCORE <span id="score">0</span></div>
+ <div>BEST <span id="best">0</span></div>
+ <div>PRESENT <span id="present">0</span></div>
+ <div>COINS <span id="coins">0</span></div>
+ <div>LEVEL <span id="level">1</span></div>
 </div>
-<p id="loginStatus" class="hidden" role="status" aria-live="polite"></p>
-<div id="hud" class="hidden">SCORE <span id="score">0</span><br>BEST <span id="best">0</span><br>PRESENT <span id="present">0</span><br>COINS <span id="coins">0</span><br>LEVEL <span id="level">1</span></div>
-<div id="stageLabel" class="hidden"></div>
-<button id="pauseBtn" class="hidden secondary">Ⅱ PAUSE</button>
-<div id="comboLabel" class="hidden"></div><div id="effectLabel" class="hidden"></div>
+<button id="pauseBtn" class="hidden">Ⅱ PAUSE</button>
+<div id="stageLabel" class="hidden">CHRISTMAS TOWN</div>
+<div id="comboLabel" class="hidden"></div>
+<div id="effectLabel" class="hidden"></div>
 <div id="missionHUD" class="hidden"></div>
-<div id="touchLabels" class="hidden"><span>← PRESENT</span><span>HOLD TO JUMP →</span></div>
-<div id="hint" class="hidden">왼쪽: 선물 발사 · 오른쪽: 점프</div>
+<div id="touchLabels" class="hidden"><span>← PRESENT HOLD TO JUMP →</span><span>왼쪽: 선물 발사 · 오른쪽: 점프</span></div>
+<div id="hint" class="hidden">CLICK / SPACE / ↑ TO JUMP · Z TO THROW</div>
 <div id="message"></div>
-<script src="game.js" defer></script>
+<div id="hotspots"></div>
+<div id="panel"></div>
+
+<div id="workshopInterior">
+ <div class="interior-shell">
+  <div class="interior-header">
+   <h2>SANTA WORKSHOP</h2>
+   <span>EST. 1842 · NORTH POLE</span>
+  </div>
+
+  <div class="interior-room">
+   <div class="room-wall"></div>
+   <div class="room-ceiling"></div>
+
+   <div class="room-window">
+    <div class="window-sky">
+     <div class="window-moon"></div>
+     <div class="window-snow"></div>
+    </div>
+    <div class="window-frame-v"></div>
+    <div class="window-frame-h"></div>
+   </div>
+
+   <div class="christmas-calendar">
+    <div class="calendar-top">
+     <div>
+      <div class="calendar-label">NORTH POLE CALENDAR</div>
+      <div class="calendar-month" id="calendarMonth">DECEMBER</div>
+     </div>
+     <div class="calendar-label" id="calendarYear">2026</div>
+    </div>
+
+    <div class="countdown">
+     <div class="countdown-number" id="daysLeft">00</div>
+     <div class="countdown-text" id="countdownText">DAYS UNTIL CHRISTMAS</div>
+    </div>
+
+    <div class="calendar-grid" id="calendarGrid"></div>
+    <div class="calendar-note">DECEMBER 25 · CHRISTMAS DAY</div>
+   </div>
+
+   <div class="workshop-sign">NORTH POLE WORKSHOP</div>
+
+   <div class="shelf"></div>
+   <div class="shelf-label">MATERIAL STORAGE</div>
+
+   <div class="workbench-label">GIFT ASSEMBLY</div>
+   <div class="workbench-top"></div>
+   <div class="workbench"></div>
+   <div class="workbench-leg left"></div>
+   <div class="workbench-leg right"></div>
+
+   <div class="gift-box gift-one"></div>
+   <div class="gift-box gift-two"></div>
+
+   <div class="gift-stack">
+    <div class="gift-box"></div>
+    <div class="gift-box"></div>
+    <div class="gift-box"></div>
+   </div>
+
+   <div class="elf">
+    <div class="elf-hat"></div>
+    <div class="elf-head"></div>
+    <div class="elf-body"></div>
+    <div class="elf-leg left"></div>
+    <div class="elf-leg right"></div>
+   </div>
+
+   <div class="room-floor"></div>
+  </div>
+
+  <div class="interior-actions">
+   <button class="interior-action" onclick="showInfo('workbench')">
+    <strong>GIFT WORKBENCH</strong>
+    <small>Prepare presents</small>
+   </button>
+   <button class="interior-action" onclick="showInfo('equipment')">
+    <strong>EQUIPMENT ROOM</strong>
+    <small>Manage your gear</small>
+   </button>
+   <button class="interior-action" onclick="showInfo('archives')">
+    <strong>WORKSHOP LOG</strong>
+    <small>Read old records</small>
+   </button>
+   <button class="interior-action" onclick="showInfo('packing')">
+    <strong>GIFT PACKING</strong>
+    <small>Prepare deliveries</small>
+   </button>
+   <button class="interior-action" onclick="showInfo('toys')">
+    <strong>TOY STORAGE</strong>
+    <small>Check materials</small>
+   </button>
+   <button class="interior-action" onclick="showInfo('quality')">
+    <strong>QUALITY CHECK</strong>
+    <small>Inspect presents</small>
+   </button>
+  </div>
+
+  <div class="interior-description">
+   The heart of Christmas is always busy.
+   Every present is prepared for Christmas Eve.
+  </div>
+
+  <button class="interior-back" onclick="closeWorkshop()">← BACK TO VILLAGE</button>
+ </div>
+</div>
+
+<script src="game.js"></script>
+<script>
+"use strict";
+
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const $=id=>document.getElementById(id);
+
+let W=0,H=0,groundY=0,frame=0;
+let launching=false,launchFrame=0,gameRunning=false,snow=[],smoke=[];
+const santa={x:0,y:0,w:42,h:52};
+
+const C={
+ black:"#171717",darkest:"#292929",dark:"#444",
+ mid:"#777",light:"#aaa",pale:"#d2d2d2",
+ snow:"#f4f4f4",white:"#fff"
+};
+
+/* CHRISTMAS COUNTDOWN CALENDAR */
+function updateChristmasCalendar(){
+ const now=new Date();
+ const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+
+ let christmas=new Date(now.getFullYear(),11,25);
+ if(today>christmas)christmas=new Date(now.getFullYear()+1,11,25);
+
+ const days=Math.round((christmas-today)/86400000);
+
+ $("daysLeft").textContent=String(days).padStart(2,"0");
+ $("countdownText").textContent=days===0?"CHRISTMAS IS HERE":"DAYS UNTIL CHRISTMAS";
+ $("calendarMonth").textContent="DECEMBER";
+ $("calendarYear").textContent=christmas.getFullYear();
+
+ const grid=$("calendarGrid");
+ grid.innerHTML="";
+
+ ["SUN","MON","TUE","WED","THU","FRI","SAT"].forEach(day=>{
+  const cell=document.createElement("div");
+  cell.className="calendar-weekday";
+  cell.textContent=day;
+  grid.appendChild(cell);
+ });
+
+ const firstDay=new Date(christmas.getFullYear(),11,1).getDay();
+
+ for(let i=0;i<firstDay;i++){
+  const cell=document.createElement("div");
+  cell.className="calendar-day empty";
+  grid.appendChild(cell);
+ }
+
+ for(let day=1;day<=31;day++){
+  const cell=document.createElement("div");
+  cell.className="calendar-day";
+  cell.textContent=day;
+
+  if(
+   christmas.getFullYear()===now.getFullYear() &&
+   now.getMonth()===11 &&
+   day===now.getDate()
+  )cell.classList.add("today");
+
+  if(day===25)cell.classList.add("christmas");
+  grid.appendChild(cell);
+ }
+}
+
+/* CANVAS */
+function resize(){
+ const d=Math.min(window.devicePixelRatio||1,2);
+ W=innerWidth;
+ H=innerHeight;
+ canvas.width=Math.round(W*d);
+ canvas.height=Math.round(H*d);
+ canvas.style.width=W+"px";
+ canvas.style.height=H+"px";
+ ctx.setTransform(d,0,0,d,0,0);
+ ctx.imageSmoothingEnabled=false;
+ groundY=H*.78;
+
+ if(!launching){
+  santa.x=W*.27;
+  santa.y=groundY-santa.h;
+ }
+ updateHotspots();
+}
+window.addEventListener("resize",resize);
+
+function px(x,y,w,h,c=C.dark){
+ ctx.fillStyle=c;
+ ctx.fillRect(Math.round(x),Math.round(y),Math.ceil(w),Math.ceil(h));
+}
+
+function twinkle(x,y,s=3){
+ ctx.globalAlpha=.3+(Math.sin(frame*.08+x*.03)+1)*.3;
+ px(x-s,y,2*s,2,C.white);
+ px(x,y-s,2,2*s,C.white);
+ ctx.globalAlpha=1;
+}
+
+function stars(){
+ for(let i=0;i<42;i++){
+  const x=(i*137+37)%W;
+  const y=(i*71+19)%(groundY-210);
+  twinkle(x,y,i%5===0?3:2);
+ }
+}
+
+function moon(x,y){
+ px(x,y,25,25,C.white);
+ px(x+5,y-3,21,21,C.pale);
+ px(x+10,y+2,13,13,C.light);
+ px(x+15,y+5,7,7,C.pale);
+}
+
+function drawSleigh(){
+ const x=santa.x-18,y=santa.y+27;
+ px(x,y,64,8,C.dark);
+ px(x+8,y-8,43,8,C.mid);
+ px(x+3,y+8,4,3,C.light);
+ px(x+52,y+8,4,3,C.light);
+ px(x+59,y-4,7,4,C.mid);
+ px(x+64,y-8,4,4,C.mid);
+ px(x+58,y+8,10,3,C.light);
+ px(santa.x+8,santa.y+15,23,24,C.dark);
+ px(santa.x+4,santa.y+18,7,17,C.light);
+ px(santa.x+13,santa.y+4,20,17,C.white);
+ px(santa.x+17,santa.y+9,3,3,C.black);
+ px(santa.x+27,santa.y+9,3,3,C.black);
+ px(santa.x+12,santa.y+17,22,7,C.dark);
+ px(santa.x+16,santa.y+24,15,5,C.dark);
+ px(santa.x+20,santa.y+29,8,4,C.black);
+ px(santa.x+9,santa.y,25,5,C.dark);
+ px(santa.x+15,santa.y-8,15,8,C.dark);
+ px(santa.x+25,santa.y-13,8,7,C.dark);
+ px(santa.x+6,santa.y-1,7,5,C.white);
+ px(santa.x+31,santa.y-14,5,5,C.white);
+}
+
+function drawRudolph(){
+ const x=santa.x+52,y=santa.y+27;
+ ctx.save();
+ ctx.translate(x,y+Math.sin(frame*.15)*2);
+ px(0,0,25,13,C.dark);
+ px(4,-4,17,5,C.mid);
+ px(4,12,4,8,C.dark);
+ px(18,12,4,8,C.dark);
+ px(20,-5,7,8,C.mid);
+ px(23,-12,13,12,C.mid);
+ px(34,-7,5,5,C.white);
+ px(30,-9,2,2,C.black);
+ px(23,-13,4,4,C.mid);
+ px(34,-13,4,4,C.mid);
+ px(26,-18,3,7,C.dark);
+ px(23,-21,3,4,C.dark);
+ px(23,-24,7,3,C.dark);
+ px(35,-18,3,7,C.dark);
+ px(38,-21,3,4,C.dark);
+ px(36,-24,7,3,C.dark);
+ px(20,-1,8,3,C.white);
+ ctx.restore();
+}
+
+function mountain(points,color){
+ ctx.fillStyle=color;
+ ctx.beginPath();
+ ctx.moveTo(points[0][0],points[0][1]);
+ for(let i=1;i<points.length;i++)ctx.lineTo(points[i][0],points[i][1]);
+ ctx.closePath();
+ ctx.fill();
+}
+
+function mountains(){
+ mountain([
+  [0,groundY-205],[W*.10,groundY-260],[W*.19,groundY-215],
+  [W*.32,groundY-300],[W*.43,groundY-235],[W*.57,groundY-280],
+  [W*.69,groundY-220],[W*.83,groundY-270],[W,groundY-210],
+  [W,groundY],[0,groundY]
+ ],C.dark);
+
+ mountain([
+  [W*.10,groundY-260],[W*.15,groundY-235],[W*.19,groundY-215],
+  [W*.32,groundY-300],[W*.39,groundY-250],[W*.32,groundY-270],
+  [W*.27,groundY-245],[W*.23,groundY-260]
+ ],C.pale);
+
+ mountain([
+  [W*.32,groundY-300],[W*.43,groundY-235],[W*.57,groundY-280],
+  [W*.51,groundY-245],[W*.45,groundY-255],[W*.40,groundY-225]
+ ],C.light);
+
+ mountain([
+  [W*.57,groundY-280],[W*.69,groundY-220],[W*.83,groundY-270],
+  [W*.77,groundY-230],[W*.70,groundY-245],[W*.65,groundY-220]
+ ],C.pale);
+
+ mountain([
+  [W*.32,groundY-300],[W*.28,groundY-265],[W*.32,groundY-278],
+  [W*.36,groundY-258],[W*.39,groundY-250]
+ ],C.white);
+}
+
+function roof(x,y,w,h){
+ px(x+7,y+12,w-14,h-12,C.dark);
+ px(x+4,y+8,w-8,7,C.black);
+ px(x+10,y+2,w-20,7,C.black);
+ px(x+w*.25,y-6,w*.5,10,C.black);
+ px(x+2,y+7,w-4,6,C.white);
+ px(x+7,y+1,w-14,5,C.white);
+ px(x+w*.25,y-8,w*.5,5,C.white);
+ for(let i=0;i<w;i+=19)px(x+i+4,y+12,4,5,C.white);
+}
+
+function drawWindow(x,y,w=19,h=24){
+ px(x-5,y-5,w+10,h+10,C.black);
+ px(x-2,y-2,w+4,h+4,C.mid);
+ px(x,y,w,h,C.light);
+ px(x+3,y+3,w-6,h-6,C.white);
+ px(x+w/2-2,y,4,h,C.dark);
+ px(x,y+h/2-2,w,4,C.dark);
+}
+
+function chimney(x,y){
+ px(x,y,14,30,C.dark);
+ px(x+3,y+3,4,25,C.mid);
+ px(x+9,y+5,3,23,C.black);
+ px(x-3,y-5,20,7,C.white);
+ px(x-1,y-8,15,4,C.pale);
+}
+
+function door(x,y,w=23,h=42){
+ px(x-4,y-4,w+8,h+4,C.black);
+ px(x,y,w,h,C.dark);
+ px(x+4,y+4,w-8,h-4,C.mid);
+ px(x+7,y+8,2,h-12,C.light);
+ px(x+w-7,y+h*.55,3,3,C.white);
+ px(x-5,y-7,w+10,5,C.white);
+ px(x+2,y+h-5,w-4,5,C.black);
+}
+
+function wreath(x,y){
+ ctx.strokeStyle=C.dark;
+ ctx.lineWidth=5;
+ ctx.beginPath();
+ ctx.arc(x,y,8,0,Math.PI*2);
+ ctx.stroke();
+ px(x-2,y-2,4,4,C.white);
+ px(x-9,y+6,5,3,C.black);
+ px(x+5,y+6,5,3,C.black);
+}
+
+function garland(x,y,w){
+ for(let i=0;i<w;i+=7)px(x+i,y+Math.sin(i*.1)*4,5,4,i%2?C.dark:C.mid);
+ for(let i=0;i<w;i+=19)px(x+i,y+5,4,5,i%38?C.light:C.white);
+}
+
+function gift(x,y,s,color){
+ px(x+2,y+3,s,s*.75,C.black);
+ px(x,y,s,s*.75,color);
+ px(x+s*.43,y,4,s*.75,C.white);
+ px(x,y+s*.35,s,4,C.white);
+ px(x+s*.25,y-5,8,6,C.mid);
+ px(x+s*.55,y-5,8,6,C.mid);
+ px(x+s*.32,y-8,7,4,C.white);
+}
+
+function workshop(x,y,w,h){
+ px(x+8,y+35,w-16,h-35,C.dark);
+ px(x+13,y+40,w-26,h-40,C.mid);
+
+ for(let yy=y+48;yy<y+h-8;yy+=11){
+  px(x+18,yy,w-36,2,C.light);
+  px(x+20,yy+3,5,2,C.dark);
+  px(x+w-28,yy+3,5,2,C.dark);
+ }
+
+ px(x+10,y+40,7,h-40,C.dark);
+ px(x+w-17,y+40,7,h-40,C.dark);
+ px(x+w/2-3,y+40,6,h-40,C.dark);
+ roof(x,y,w,45);
+ chimney(x+w-35,y-25);
+ drawWindow(x+27,y+57,24,30);
+ drawWindow(x+w-53,y+57,24,30);
+ door(x+w/2-14,y+h-52,28,52);
+ wreath(x+w/2,y+h-65);
+ px(x+w/2-45,y+19,90,19,C.black);
+ px(x+w/2-42,y+21,84,15,C.mid);
+ ctx.fillStyle=C.white;
+ ctx.font="bold 8px monospace";
+ ctx.textAlign="center";
+ ctx.fillText("SANTA WORKSHOP",x+w/2,y+31);
+ garland(x+13,y+45,w-26);
+ gift(x+18,y+h-20,13,C.dark);
+ gift(x+32,y+h-20,13,C.light);
+ gift(x+w-45,y+h-20,13,C.mid);
+}
+
+function cottage(x,y,w,h,variant=0){
+ px(x+8,y+32,w-16,h-32,C.darkest);
+ px(x+11,y+35,w-22,h-35,variant===0?C.light:C.mid);
+ for(let yy=y+43;yy<y+h-8;yy+=9){
+  px(x+12,yy,w-24,2,variant===0?C.pale:C.dark);
+  px(x+17,yy+3,3,2,C.dark);
+  px(x+w-22,yy+3,3,2,C.dark);
+ }
+ roof(x,y,w,43);
+ chimney(x+w*.72,y-20);
+ drawWindow(x+23,y+55,20,24);
+ drawWindow(x+w-43,y+55,20,24);
+ door(x+w/2-11,y+h-43,22,43);
+ wreath(x+w/2,y+h-53);
+ garland(x+12,y+36,w-24);
+}
+
+function giftHouse(x,y,w,h){
+ px(x+8,y+32,w-16,h-32,C.dark);
+ px(x+11,y+35,w-22,h-35,C.mid);
+ roof(x,y,w,42);
+ chimney(x+20,y-22);
+ px(x+w/2-30,y+60,60,h-60,C.black);
+ px(x+w/2-25,y+65,50,h-65,C.mid);
+ px(x+w/2-2,y+65,4,h-65,C.dark);
+ for(let yy=y+78;yy<y+h-8;yy+=20)px(x+w/2-23,yy,46,4,C.dark);
+ px(x+w/2-37,y+14,74,19,C.black);
+ ctx.fillStyle=C.white;
+ ctx.font="bold 8px monospace";
+ ctx.textAlign="center";
+ ctx.fillText("GIFT STORAGE",x+w/2,y+26);
+ gift(x+15,y+h-35,22,C.dark);
+ gift(x+40,y+h-29,25,C.light);
+ gift(x+w-43,y+h-34,23,C.mid);
+}
+
+function lamp(x,y){
+ px(x+7,y,5,68,C.black);
+ px(x+8,y+4,2,60,C.mid);
+ px(x,y-8,19,7,C.dark);
+ px(x+3,y-22,13,16,C.black);
+ px(x+5,y-19,9,11,C.white);
+ px(x+2,y-25,15,4,C.black);
+ px(x+2,y+64,15,5,C.black);
+ px(x-3,y+69,25,3,C.dark);
+}
+
+function snowman(x,y){
+ px(x+8,y+24,26,23,C.pale);
+ px(x+3,y+39,36,20,C.white);
+ px(x+12,y+4,18,21,C.white);
+ px(x+9,y+1,24,5,C.black);
+ px(x+13,y-6,16,8,C.dark);
+ px(x+16,y+11,3,3,C.black);
+ px(x+24,y+11,3,3,C.black);
+ px(x+19,y+16,7,3,C.mid);
+ px(x+20,y+31,4,4,C.dark);
+ px(x+20,y+41,4,4,C.dark);
+ px(x+3,y+30,8,3,C.dark);
+ px(x-1,y+26,5,7,C.black);
+ px(x+30,y+30,9,3,C.dark);
+ px(x+38,y+26,5,7,C.black);
+}
+
+function snowGround(){
+ px(0,groundY,W,H-groundY,C.pale);
+ for(let i=0;i<W;i+=35){
+  const h=5+(i%4)*3;
+  px(i,groundY-h,35,h,C.white);
+  px(i+8,groundY-h-3,13,3,C.white);
+  px(i+22,groundY-h-1,8,2,C.light);
+ }
+ px(0,groundY+10,W,3,C.light);
+ for(let i=0;i<55;i++){
+  const x=(i*79+30)%W;
+  const y=groundY+15+(i%9)*13;
+  px(x,y,3+(i%3),2,i%3?C.white:C.light);
+ }
+}
+
+function drawSmoke(){
+ const small=W<=650;
+ const cx=small?W*.08+20:W*.13+20;
+ const cy=groundY-(small?135:150)-30;
+
+ if(frame%25===0){
+  smoke.push({x:cx,y:cy,vx:-.12-Math.random()*.12,vy:-.25,life:30,size:2+Math.random()*2});
+ }
+
+ for(const p of smoke){
+  p.x+=p.vx;p.y+=p.vy;p.life--;
+  ctx.globalAlpha=Math.min(.18,p.life/180);
+  px(p.x,p.y,p.size,p.size,C.light);
+ }
+ ctx.globalAlpha=1;
+ smoke=smoke.filter(p=>p.life>0);
+}
+
+/* ORIGINAL VILLAGE BUILDING LAYOUT */
+function drawBackground(){
+ const sky=ctx.createLinearGradient(0,0,0,H);
+ sky.addColorStop(0,"#292929");
+ sky.addColorStop(.55,"#777");
+ sky.addColorStop(1,"#ddd");
+ ctx.fillStyle=sky;
+ ctx.fillRect(0,0,W,H);
+
+ stars();
+ moon(W*.79,groundY-300);
+ mountains();
+
+ /* Original building positions intentionally preserved */
+ cottage(W*.02,groundY-150,95,150,1);
+ cottage(W*.79,groundY-160,105,160,0);
+ cottage(W*.91,groundY-125,90,125,1);
+
+ if(W>650){
+  workshop(W*.43,groundY-225,210,225);
+  giftHouse(W*.13,groundY-150,145,150);
+ }else{
+  workshop(W*.43,groundY-205,165,205);
+  giftHouse(W*.08,groundY-135,115,135);
+ }
+
+ cottage(W*.76,groundY-120,100,120,1);
+
+ snowGround();
+ lamp(W*.12,groundY-65);
+ lamp(W*.84,groundY-65);
+ snowman(W*.22,groundY-60);
+
+ gift(W*.32,groundY-30,25,C.dark);
+ gift(W*.36,groundY-38,30,C.light);
+ gift(W*.40,groundY-26,23,C.mid);
+ gift(W*.70,groundY-28,25,C.mid);
+ gift(W*.74,groundY-40,30,C.dark);
+
+ drawSleigh();
+ drawRudolph();
+
+ for(const s of snow)px(s.x,s.y,s.size,s.size,C.white);
+ drawSmoke();
+}
+
+function updateSnow(){
+ for(const s of snow){
+  s.x-=s.speed*.3;
+  s.y+=s.speed;
+  if(s.y>H){s.y=-5;s.x=Math.random()*W}
+  if(s.x<0)s.x=W;
+ }
+}
+
+function initSnow(){
+ snow=[];
+ for(let i=0;i<130;i++){
+  snow.push({
+   x:Math.random()*W,y:Math.random()*H,
+   size:Math.random()<.7?2:3,
+   speed:.5+Math.random()*1.3
+  });
+ }
+}
+
+/* FIVE BUILDINGS */
+const buildings=[
+ {id:"records",label:"RECORDS"},
+ {id:"shop",label:"SLEIGH SHOP"},
+ {id:"workshop",label:"WORKSHOP"},
+ {id:"missions",label:"MISSIONS"},
+ {id:"achievements",label:"ACHIEVEMENTS"}
+];
+
+function updateHotspots(){
+ const container=$("hotspots");
+ if(!container)return;
+ container.innerHTML="";
+ const small=W<=650;
+
+ const positions=[
+  {x:W*.02,y:groundY-150,w:95,h:150},
+  {x:small?W*.08:W*.13,y:groundY-(small?135:150),w:small?115:145,h:small?135:150},
+  {x:W*.43,y:groundY-(small?205:225),w:small?165:210,h:small?205:225},
+  {x:W*.76,y:groundY-120,w:100,h:120},
+  {x:W*.91,y:groundY-125,w:90,h:125}
+ ];
+
+ buildings.forEach((b,i)=>{
+  const p=positions[i];
+  const button=document.createElement("button");
+  button.className="building-button";
+  button.style.left=p.x+"px";
+  button.style.top=p.y+"px";
+  button.style.width=p.w+"px";
+  button.style.height=p.h+"px";
+  button.innerHTML="<span>"+b.label+"</span>";
+
+  button.onclick=()=>{
+   if(b.id==="workshop")openWorkshop();
+   else showInfo(b.id);
+  };
+
+  container.appendChild(button);
+ });
+}
+
+function showMenu(){
+ gameRunning=false;
+ $("hotspots").style.display="block";
+ $("panel").style.display="none";
+ $("workshopInterior").style.display="none";
+ $("message").innerHTML=`
+ <div class="menu-card">
+  <div class="menu-location">NORTH POLE · SANTA VILLAGE</div>
+  <h1>SANTA RUN</h1>
+  <div class="subtitle">THE CHRISTMAS DELIVERY PROJECT</div>
+  <button id="startBtn">▶ START DELIVERY</button>
+  <div class="menu-footer">SELECT A BUILDING TO EXPLORE</div>
+ </div>`;
+
+ $("startBtn").onclick=()=>{
+ if(launching)return;
+ launching=true;
+ launchFrame=0;
+ gameRunning=true;
+ $("hotspots").style.display="none";
+ $("startBtn").textContent="PREPARING DEPARTURE...";
+ document.dispatchEvent(new Event("santa-menu-start"));
+ };
+ updateHotspots();
+}
+
+const pageData={
+ records:{
+  title:"DELIVERY RECORDS",
+  tag:"NORTH POLE ARCHIVES",
+  description:"Review your delivery history and personal best records.",
+  content:"TOTAL DELIVERIES: 0<br>BEST DISTANCE: 0 m<br>BEST SCORE: 0"
+ },
+ shop:{
+  title:"SLEIGH SHOP",
+  tag:"EQUIPMENT & CUSTOMIZATION",
+  description:"Upgrade your sleigh and prepare for the next journey.",
+  content:"SLEIGH UPGRADES<br>COMING SOON<br><br>NEW DESIGNS<br>COMING SOON"
+ },
+ missions:{
+  title:"MISSION CONTROL",
+  tag:"NORTH POLE OPERATIONS",
+  description:"Take on special delivery missions across the world.",
+  content:"DAILY MISSION<br>Deliver your first present<br><br>SPECIAL OPERATIONS<br>COMING SOON"
+ },
+ achievements:{
+  title:"ACHIEVEMENTS",
+  tag:"NORTH POLE HALL OF FAME",
+  description:"Track your accomplishments and milestones as Santa.",
+  content:"FIRST DELIVERY — Complete your first delivery<br><br>GIFT MASTER — Deliver 100 presents<br><br>AROUND THE WORLD — Visit every region<br><br>CHRISTMAS HERO — Complete all special missions"
+ },
+ workbench:{
+  title:"GIFT WORKBENCH",
+  tag:"WORKSHOP STATION",
+  description:"The elves are preparing presents for Christmas Eve.",
+  content:"PRESENT PACKING<br>COMING SOON<br><br>GIFT CUSTOMIZATION<br>COMING SOON"
+ },
+ equipment:{
+  title:"EQUIPMENT ROOM",
+  tag:"WORKSHOP STORAGE",
+  description:"All the tools and equipment used for delivery.",
+  content:"SLEIGH PARTS<br>DELIVERY TOOLS<br>WINTER EQUIPMENT"
+ },
+ archives:{
+  title:"WORKSHOP LOG",
+  tag:"OLD NORTH POLE RECORDS",
+  description:"Notes and memories from previous Christmas missions.",
+  content:"ARCHIVE 001 — THE FIRST DELIVERY<br>ARCHIVE 002 — THE GREAT SNOWFALL<br>ARCHIVE 003 — UNKNOWN"
+ },
+ packing:{
+  title:"GIFT PACKING LINE",
+  tag:"FACTORY FLOOR · STATION 01",
+  description:"Finished toys are wrapped, labelled and prepared for delivery.",
+  content:"PACKING STATUS: ACTIVE<br>DAILY TARGET: 1,000 PRESENTS"
+ },
+ toys:{
+  title:"TOY STORAGE",
+  tag:"WORKSHOP STORAGE",
+  description:"Materials and toys waiting to be prepared.",
+  content:"AVAILABLE MATERIALS: WOOD / METAL<br>STOCK STATUS: READY"
+ },
+ quality:{
+  title:"QUALITY CONTROL",
+  tag:"FACTORY FLOOR · STATION 03",
+  description:"Every present is inspected before it enters the delivery line.",
+  content:"INSPECTION STATUS: ACTIVE<br>SAFETY CHECK: REQUIRED<br>APPROVED PRESENTS: READY"
+ }
+};
+
+function showInfo(id){
+ const d=pageData[id];
+ if(!d)return;
+
+ $("panel").style.display="flex";
+ $("panel").innerHTML=`
+  <div class="panel-card">
+   <div class="panel-tag">${d.tag}</div>
+   <h2>${d.title}</h2>
+   <p>${d.description}</p>
+   <div class="panel-content">${d.content}</div>
+   <button id="backBtn">BACK</button>
+  </div>`;
+ $("backBtn").onclick=closeInfo;
+}
+
+function closeInfo(){
+ $("panel").style.display="none";
+}
+
+function openWorkshop(){
+ updateChristmasCalendar();
+ $("workshopInterior").style.display="block";
+ $("hotspots").style.display="none";
+ $("message").style.display="none";
+}
+
+function closeWorkshop(){
+ $("workshopInterior").style.display="none";
+ $("hotspots").style.display="block";
+ $("message").style.display="flex";
+}
+
+function loop(){
+ if(gameRunning)return;
+ frame++;
+ updateSnow();
+
+ if(launching){
+  launchFrame++;
+  santa.x+=5;
+
+  if(launchFrame>=55){
+   $("hotspots").innerHTML="";
+   $("message").innerHTML="";
+   document.dispatchEvent(new Event("santa-menu-start"));
+   return;
+  }
+ }
+
+ drawBackground();
+ requestAnimationFrame(loop);
+}
+
+function start(){
+ resize();
+ initSnow();
+ showMenu();
+ updateChristmasCalendar();
+ drawBackground();
+ requestAnimationFrame(loop);
+}
+
+start();
+</script>
 </body>
 </html>
