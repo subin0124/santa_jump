@@ -42,7 +42,7 @@ http://localhost:8000
 
 ### Google 로그인
 
-게임 진행 상황은 Google Drive의 비공개 앱 데이터 영역(`appDataFolder`)에 저장됩니다. 별도 서버는 필요하지 않으며, 최초 로그인 시 기존 브라우저 저장 진행 상황이 해당 Google 계정으로 복사됩니다. 이후에는 게임 종료 기록과 업그레이드가 계정에 동기화됩니다.
+게임 진행 상황과 모든 플레이 기록은 Google Drive의 비공개 앱 데이터 영역(`appDataFolder`)에 저장됩니다. 별도 서버는 필요하지 않으며, 최초 로그인 시 기존 브라우저 저장 진행 상황이 해당 Google 계정으로 복사됩니다. 이후에는 게임 종료 기록과 업그레이드가 계정에 동기화되며, 기록 화면에서 전체 플레이 기록을 최신순으로 확인할 수 있습니다.
 
 1. Google Cloud Console에서 프로젝트를 만들고 **Google Drive API**를 활성화합니다.
 2. OAuth 동의 화면을 설정하고 `openid`, `email`, `https://www.googleapis.com/auth/drive.appdata` 범위를 허용합니다. 테스트 모드에서는 사용할 Google 계정을 테스트 사용자에 추가합니다.

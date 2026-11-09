@@ -63,7 +63,7 @@ function normalizeData(s){
   ...defaultData,...s,
   upgrades:{...defaultData.upgrades,...(s.upgrades||{})},
   achievements:Array.isArray(s.achievements)?s.achievements.filter(id=>typeof id==="string"):[],
-  records:Array.isArray(s.records)?s.records.slice(0,10):[]
+  records:Array.isArray(s.records)?s.records:[]
  };
  for(const key of ["best","coins","totalPresent","totalItems","bestCombo","unlocked"]){
   if(!Number.isFinite(result[key])||result[key]<0)result[key]=defaultData[key];
@@ -322,10 +322,15 @@ function showRecords(){
  <p>TOTAL DELIVERIES: ${data.totalPresent}</p>
  <p>TOTAL ITEMS: ${data.totalItems}</p>
  <p>BEST COMBO: ${data.bestCombo}</p>
- <h3>TOP 10 RECORDS</h3>`;
+ <h3>PLAY HISTORY</h3>`;
  if(!data.records.length)h+="<p>아직 기록이 없습니다.</p>";
- data.records.slice(0,10).forEach((r,i)=>{
-  h+=`<div class="entry"><span>${i+1}. ${r.stage}</span><b>${r.score} PTS</b></div>`;
+ const timestamp=r=>{
+  const parsed=Date.parse(r.playedAt||r.date||"");
+  return Number.isFinite(parsed)?parsed:0;
+ };
+ data.records.slice().sort((a,b)=>timestamp(b)-timestamp(a)).forEach((r,i)=>{
+  const date=r.date||(r.playedAt?new Date(r.playedAt).toLocaleDateString():"");
+  h+=`<div class="entry"><span>${i+1}. ${r.stage} · ${date} · ${r.present||0} gifts</span><b>${r.score} PTS</b></div>`;
  });
  showPanel("RECORDS",h);
 }
@@ -460,10 +465,8 @@ function endGame(){
  data.unlocked=Math.max(data.unlocked,stageData.reduce((n,s,i)=>data.best>=s.unlock?i:n,0));
  data.records.push({
   score,stage:stageData[currentStage].name,
-  present,date:new Date().toLocaleDateString()
+  present,date:new Date().toLocaleDateString(),playedAt:new Date().toISOString()
  });
- data.records.sort((a,b)=>b.score-a.score);
- data.records=data.records.slice(0,10);
  checkAchievements();saveData();
 
  $("message").innerHTML=`
